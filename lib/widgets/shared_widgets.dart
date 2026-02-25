@@ -96,6 +96,7 @@ class _GradientButtonState extends State<GradientButton> {
           width: widget.width,
           height: widget.height,
           transform: _isHovered
+              // ignore: deprecated_member_use
               ? (Matrix4.identity()..scale(1.02))
               : Matrix4.identity(),
           decoration: BoxDecoration(
