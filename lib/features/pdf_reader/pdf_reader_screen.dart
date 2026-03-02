@@ -54,6 +54,9 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
   // Sidebar
   bool _showSidebar = true;
 
+  // Controls visibility (tap to toggle)
+  bool _showControls = true;
+
   // Animation
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -164,7 +167,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
         try {
           final page = doc.pages[i];
           final pageText = await page.loadText();
-          final fullText = pageText.fullText;
+          final fullText = pageText?.fullText ?? '';
           pageTexts.add(fullText);
         } catch (e) {
           pageTexts.add(''); // empty page or error
@@ -474,40 +477,106 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
 
     return Stack(
       children: [
-        Column(
-          children: [
-            // ── Top bar ──
-            _buildPdfTopBar(),
+        // ── Main tappable area ──
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            setState(() => _showControls = !_showControls);
+          },
+          child: Column(
+            children: [
+              // ── Top bar (animated) ──
+              AnimatedSlide(
+                offset: _showControls ? Offset.zero : const Offset(0, -1),
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeInOut,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 280),
+                  child: _buildPdfTopBar(),
+                ),
+              ),
 
-            // ── Content area ──
-            Expanded(
-              child: Row(
-                children: [
-                  // ── Thumbnail sidebar ──
-                  if (_showSidebar) _buildSidebar(),
+              // ── Content area ──
+              Expanded(
+                child: Row(
+                  children: [
+                    // ── Thumbnail sidebar (animated) ──
+                    AnimatedSlide(
+                      offset: (_showSidebar && _showControls)
+                          ? Offset.zero
+                          : const Offset(-1, 0),
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOut,
+                      child: AnimatedOpacity(
+                        opacity: (_showSidebar && _showControls) ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 280),
+                        child: _showSidebar ? _buildSidebar() : const SizedBox.shrink(),
+                      ),
+                    ),
 
-                  // ── Main PDF view ──
-                  Expanded(
-                    child: _pdfDocument != null && _fileBytes != null
-                        ? PdfViewer.data(
-                            _fileBytes!,
-                            sourceName: _fileName ?? 'document.pdf',
-                            params: PdfViewerParams(
-                              backgroundColor: AppColors.bgPrimary,
-                            ),
-                          )
-                        : const Center(
-                            child: Text(
-                              'Failed to render PDF',
-                              style:
-                                  TextStyle(color: AppColors.textSecondary),
+                    // ── Main PDF view ──
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          _pdfDocument != null && _fileBytes != null
+                              ? PdfViewer.data(
+                                  _fileBytes!,
+                                  sourceName: _fileName ?? 'document.pdf',
+                                  params: PdfViewerParams(
+                                    backgroundColor: AppColors.bgPrimary,
+                                  ),
+                                )
+                              : const Center(
+                                  child: Text(
+                                    'Failed to render PDF',
+                                    style: TextStyle(
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ),
+                          // Tap hint overlay (shown briefly when controls hide)
+                          AnimatedOpacity(
+                            opacity: _showControls ? 0.0 : 1.0,
+                            duration: const Duration(milliseconds: 280),
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 32),
+                                child: IgnorePointer(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.55),
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.touch_app_rounded,
+                                            color: Colors.white70, size: 16),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Tap to show controls',
+                                          style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                  ),
-                ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
 
         // ── Resume dialog overlay ──

@@ -187,26 +187,51 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   Widget _buildReader(ReaderState state, ReadingTheme theme) {
     final settings = ref.watch(settingsProvider);
+    final reader = ref.read(readerProvider.notifier);
 
     return Stack(
       children: [
-        // ── Main content area ──
+        // ── Main gesture + content area ──
         GestureDetector(
-          onTap: () => ref.read(readerProvider.notifier).togglePlay(),
+          onTap: () => reader.togglePlay(),
+          // Swipe left/right → seek words
+          // Swipe up/down   → adjust WPM
+          onHorizontalDragEnd: (details) {
+            final dx = details.primaryVelocity ?? 0;
+            if (dx.abs() > 200) {
+              if (dx < 0) reader.seekByWords(1);
+              else reader.seekByWords(-1);
+            }
+          },
+          onVerticalDragEnd: (details) {
+            final dy = details.primaryVelocity ?? 0;
+            if (dy.abs() > 200) {
+              if (dy < 0) reader.adjustWpm(AppConstants.wpmStep);
+              else reader.adjustWpm(-AppConstants.wpmStep);
+            }
+          },
           child: Column(
             children: [
-              // ── Top bar ──
-              if (_showControls) _buildTopBar(state, theme),
+              // ── Top bar (animated) ──
+              AnimatedSlide(
+                offset: _showControls ? Offset.zero : const Offset(0, -1),
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: _buildTopBar(state, theme),
+                ),
+              ),
 
               // ── Focal reading area (center) ──
               Expanded(
                 child: Center(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Context before
                         if (settings.showContextLines)
                           Text(
                             state.contextBefore,
@@ -219,15 +244,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        if (settings.showContextLines)
-                          const SizedBox(height: 16),
+                        if (settings.showContextLines) const SizedBox(height: 16),
 
                         // ── FOCAL WORD(S) — the hero ──
                         _buildFocalWord(state, theme),
 
-                        if (settings.showContextLines)
-                          const SizedBox(height: 16),
-                        // Context after
+                        if (settings.showContextLines) const SizedBox(height: 16),
                         if (settings.showContextLines)
                           Text(
                             state.contextAfter,
@@ -240,6 +262,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+
+                        // ── Swipe hint (shown when controls hidden) ──
+                        if (!_showControls) ...[
+                          const SizedBox(height: 40),
+                          AnimatedOpacity(
+                            opacity: !_showControls ? 0.35 : 0.0,
+                            duration: const Duration(milliseconds: 400),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.swipe_rounded,
+                                    color: theme.contextText, size: 14),
+                                const SizedBox(width: 6),
+                                Text('Swipe ←→ to seek · ↑↓ WPM',
+                                  style: TextStyle(
+                                      color: theme.contextText, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -256,8 +298,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                     : theme.contextText.withValues(alpha: 0.2),
               ),
 
-              // ── Bottom controls ──
-              if (_showControls) _buildBottomControls(state, theme),
+              // ── Bottom controls (animated) ──
+              AnimatedSlide(
+                offset: _showControls ? Offset.zero : const Offset(0, 1),
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: _buildBottomControls(state, theme),
+                ),
+              ),
             ],
           ),
         ),
@@ -435,103 +486,165 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Widget _buildBottomControls(ReaderState state, ReadingTheme theme) {
     final reader = ref.read(readerProvider.notifier);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.bgSecondary.withValues(alpha: 0.95),
-        border: Border(
-          top: BorderSide(color: AppColors.border.withValues(alpha: 0.3)),
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: BoxDecoration(
+          color: AppColors.bgSecondary.withValues(alpha: 0.97),
+          border: Border(
+            top: BorderSide(color: AppColors.border.withValues(alpha: 0.3)),
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Left controls
-          _ControlButton(
-            icon: Icons.fast_rewind_rounded,
-            label: 'J',
-            onTap: () => reader.seekByTime(-10),
-            theme: theme,
-          ),
-          const SizedBox(width: 8),
-          _ControlButton(
-            icon: Icons.skip_previous_rounded,
-            label: '←',
-            onTap: () => reader.seekByWords(-1),
-            theme: theme,
-          ),
-          const SizedBox(width: 16),
-
-          // Play/Pause — center hero button
-          GestureDetector(
-            onTap: () => reader.togglePlay(),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [theme.focalWord, theme.focalWord.withValues(alpha: 0.7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.focalWord.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // WPM pill row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => reader.adjustWpm(-AppConstants.wpmStep),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: theme.focalWord.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
                     ),
-                  ],
+                    child: Icon(Icons.remove_rounded,
+                        color: theme.focalWord, size: 18),
+                  ),
                 ),
-                child: Icon(
-                  state.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 28,
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.focalWord.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: theme.focalWord.withValues(alpha: 0.3),
+                        width: 0.5),
+                  ),
+                  child: Text(
+                    '${state.wpm} WPM',
+                    style: TextStyle(
+                      color: theme.focalWord,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => reader.adjustWpm(AppConstants.wpmStep),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: theme.focalWord.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.add_rounded,
+                        color: theme.focalWord, size: 18),
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 12),
 
-          const SizedBox(width: 16),
-          _ControlButton(
-            icon: Icons.skip_next_rounded,
-            label: '→',
-            onTap: () => reader.seekByWords(1),
-            theme: theme,
-          ),
-          const SizedBox(width: 8),
-          _ControlButton(
-            icon: Icons.fast_forward_rounded,
-            label: 'L',
-            onTap: () => reader.seekByTime(10),
-            theme: theme,
-          ),
+            // Main controls row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _ControlButton(
+                  icon: Icons.fast_rewind_rounded,
+                  label: '-10s',
+                  onTap: () => reader.seekByTime(-10),
+                  theme: theme,
+                ),
+                const SizedBox(width: 8),
+                _ControlButton(
+                  icon: Icons.skip_previous_rounded,
+                  label: 'Prev',
+                  onTap: () => reader.seekByWords(-1),
+                  theme: theme,
+                ),
+                const SizedBox(width: 16),
 
-          const SizedBox(width: 32),
+                // Play/Pause — hero button (larger)
+                GestureDetector(
+                  onTap: () => reader.togglePlay(),
+                  child: Container(
+                    width: 64, height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [theme.focalWord,
+                            theme.focalWord.withValues(alpha: 0.75)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.focalWord.withValues(alpha: 0.35),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      state.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _ControlButton(
+                  icon: Icons.skip_next_rounded,
+                  label: 'Next',
+                  onTap: () => reader.seekByWords(1),
+                  theme: theme,
+                ),
+                const SizedBox(width: 8),
+                _ControlButton(
+                  icon: Icons.fast_forward_rounded,
+                  label: '+10s',
+                  onTap: () => reader.seekByTime(10),
+                  theme: theme,
+                ),
+              ],
+            ),
 
-          // Right controls
-          _ControlButton(
-            icon: Icons.settings_rounded,
-            label: '',
-            onTap: () => setState(() => _settingsOpen = !_settingsOpen),
-            theme: theme,
-            isActive: _settingsOpen,
-          ),
-          const SizedBox(width: 8),
-          _ControlButton(
-            icon: Icons.close_rounded,
-            label: 'Esc',
-            onTap: () {
-              reader.pause();
-              context.pop();
-            },
-            theme: theme,
-          ),
-        ],
+            const SizedBox(height: 8),
+
+            // Settings + Close row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _ControlButton(
+                  icon: Icons.settings_rounded,
+                  label: 'Settings',
+                  onTap: () => setState(() => _settingsOpen = !_settingsOpen),
+                  theme: theme,
+                  isActive: _settingsOpen,
+                ),
+                const SizedBox(width: 16),
+                _ControlButton(
+                  icon: Icons.close_rounded,
+                  label: 'Exit',
+                  onTap: () {
+                    reader.pause();
+                    context.pop();
+                  },
+                  theme: theme,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -18,7 +18,7 @@ dependencies:
   go_router: ^14.2.0
 
   # PDF rendering & text extraction
-  pdfrx: ^1.0.100
+  pdfrx: ^2.0.0
 
   # Local storage
   hive: ^2.2.3

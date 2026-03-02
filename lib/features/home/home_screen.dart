@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +15,6 @@ import '../../widgets/shared_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
-
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -26,26 +23,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  late AnimationController _slideController;
+  late Animation<Offset> _slideAnimation;
   final TextEditingController _urlController = TextEditingController();
-  bool _showUrlInput = false;
 
   @override
   void initState() {
     super.initState();
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 700),
     );
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
+    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
     );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
     _fadeController.forward();
+    _slideController.forward();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
+    _slideController.dispose();
     _urlController.dispose();
     super.dispose();
   }
@@ -55,27 +58,118 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       dialogTitle: 'Open PDF',
+      withData: true,
     );
     if (result != null && result.files.isNotEmpty && mounted) {
-      final path = result.files.single.path;
-      if (path != null) {
-        context.push('/pdf-reader', extra: path);
+      final file = result.files.single;
+      if (file.path != null) {
+        context.push('/pdf-reader', extra: file.path);
       }
     }
   }
 
   Future<void> _pasteFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data != null && data.text != null && data.text!.isNotEmpty && mounted) {
-      ref.read(readerProvider.notifier).loadText(data.text!, title: 'Clipboard Text');
+    if (data?.text?.isNotEmpty == true && mounted) {
+      ref.read(readerProvider.notifier).loadText(data!.text!, title: 'Clipboard Text');
       context.push('/reader');
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Clipboard is empty'),
+          backgroundColor: AppColors.bgElevated,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
     }
+  }
+
+  void _showUrlBottomSheet() {
+    _urlController.clear();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24, right: 24, top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Load Web Article',
+                style: GoogleFonts.inter(
+                  fontSize: 20, fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                )),
+              const SizedBox(height: 6),
+              const Text('Paste a URL to extract and speed-read any article',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              const SizedBox(height: 20),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.bgTertiary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: TextField(
+                  controller: _urlController,
+                  autofocus: true,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+                  decoration: const InputDecoration(
+                    hintText: 'https://...',
+                    hintStyle: TextStyle(color: AppColors.textDim),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    prefixIcon: Icon(Icons.link_rounded, color: AppColors.textMuted),
+                  ),
+                  onSubmitted: (_) {
+                    Navigator.pop(ctx);
+                    _loadUrl();
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: GradientButton(
+                  label: 'Start Reading',
+                  icon: Icons.play_arrow_rounded,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _loadUrl();
+                  },
+                  height: 54,
+                  colors: const [AppColors.accentBlue, Color(0xFF93C5FD)],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _loadUrl() {
     final url = _urlController.text.trim();
     if (url.isEmpty) return;
-    // Ensure URL has scheme
     final fullUrl = url.startsWith('http') ? url : 'https://$url';
     ref.read(readerProvider.notifier).loadUrl(fullUrl);
     context.push('/reader');
@@ -88,12 +182,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(readerProvider.notifier).loadUrl(doc.sourceUrl!);
       context.push('/reader');
     } else {
-      // Text documents — can't re-open without content
-      // Show a message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Text documents are session-only. Paste text again to continue.'),
+        SnackBar(
+          content: const Text('Text documents are session-only. Paste again to continue.'),
           backgroundColor: AppColors.bgElevated,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -104,222 +198,197 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final recentDocs = ref.watch(recentDocumentsProvider);
     final stats = ref.watch(statsProvider);
 
-
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: SingleChildScrollView(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 48),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Logo & Header ──
-                    _buildHeader(),
-                    const SizedBox(height: 48),
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: CustomScrollView(
+            slivers: [
+              // ── Hero Header ──
+              SliverToBoxAdapter(child: _buildHeroHeader(stats)),
 
-                    // ── Quick Stats ──
-                    _buildQuickStats(stats),
-                    const SizedBox(height: 40),
-
-                    // ── Main Action Buttons ──
-                    _buildActionButtons(),
-                    const SizedBox(height: 16),
-
-                    // ── URL Input (conditional) ──
-                    if (_showUrlInput) ...[
-                      _buildUrlInput(),
-                      const SizedBox(height: 16),
-                    ],
-
-                    const SizedBox(height: 40),
-
-                    // ── Recent Documents ──
-                    if (recentDocs.isNotEmpty) ...[
-                      _buildRecentDocuments(recentDocs),
-                    ],
-                  ],
-                ),
+              // ── Action Cards ──
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(child: _buildActionGrid()),
               ),
-            ),
+
+              // ── Recent Documents ──
+              if (recentDocs.isNotEmpty) ...[
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history_rounded,
+                            color: AppColors.textMuted, size: 18),
+                        const SizedBox(width: 8),
+                        Text('Recent Documents',
+                          style: GoogleFonts.inter(
+                            fontSize: 17, fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          )),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => context.push('/statistics'),
+                          child: Text('See all',
+                            style: TextStyle(
+                              color: AppColors.accentOrange,
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                            )),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (ctx, i) => _RecentDocumentTile(
+                        document: recentDocs[i],
+                        onTap: () => _openRecentDocument(recentDocs[i]),
+                        onRemove: () => ref
+                            .read(recentDocumentsProvider.notifier)
+                            .remove(recentDocs[i].documentHash),
+                      ),
+                      childCount: recentDocs.length,
+                    ),
+                  ),
+                ),
+              ],
+
+              // Bottom padding for nav bar
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
           ),
         ),
+      ),
+
+      // ── Bottom Navigation Bar ──
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildHeroHeader(ReadingStats stats) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1A0E00), AppColors.bgPrimary],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Logo row
+          Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.accentOrange, Color(0xFFFF8F5E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accentOrange.withValues(alpha: 0.4),
+                      blurRadius: 12, offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.auto_stories_rounded,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(AppConstants.appName,
+                    style: GoogleFonts.inter(
+                      fontSize: 24, fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary, letterSpacing: -0.5,
+                    )),
+                  Text(AppConstants.appTagline,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // Stats row
+          Row(
+            children: [
+              _MiniStat(
+                icon: Icons.menu_book_rounded,
+                color: AppColors.accentOrange,
+                value: AppUtils.formatNumber(stats.totalWordsRead),
+                label: 'Words',
+              ),
+              const SizedBox(width: 12),
+              _MiniStat(
+                icon: Icons.timer_outlined,
+                color: AppColors.accentBlue,
+                value: AppUtils.formatDuration(
+                    Duration(seconds: stats.totalReadingTimeSeconds)),
+                label: 'Read Time',
+              ),
+              const SizedBox(width: 12),
+              _MiniStat(
+                icon: Icons.local_fire_department_rounded,
+                color: AppColors.accentYellow,
+                value: '${stats.currentStreak}d',
+                label: 'Streak',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            // Logo icon
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.accentOrange, Color(0xFFFF8F5E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accentOrange.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.auto_stories_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppConstants.appName,
-                  style: GoogleFonts.inter(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  AppConstants.appTagline,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.textMuted,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Version badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.bgTertiary,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border, width: 0.5),
-              ),
-              child: Text(
-                'v${AppConstants.appVersion}',
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickStats(ReadingStats stats) {
-    return Row(
-      children: [
-        _StatChip(
-          icon: Icons.menu_book_rounded,
-          label: 'Words Read',
-          value: AppUtils.formatNumber(stats.totalWordsRead),
-          color: AppColors.accentOrange,
-        ),
-        const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.timer_outlined,
-          label: 'Reading Time',
-          value: AppUtils.formatDuration(
-              Duration(seconds: stats.totalReadingTimeSeconds)),
-          color: AppColors.accentBlue,
-        ),
-        const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.local_fire_department_rounded,
-          label: 'Streak',
-          value: '${stats.currentStreak} days',
-          color: AppColors.accentYellow,
-        ),
-        const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.check_circle_outline_rounded,
-          label: 'Sessions',
-          value: '${stats.totalSessionsCompleted}',
-          color: AppColors.accentGreen,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons() {
+  Widget _buildActionGrid() {
     return Column(
       children: [
-        // Hero button — Open PDF
-        SizedBox(
-          width: double.infinity,
-          child: GradientButton(
-            label: 'Open PDF Reader',
-            icon: Icons.picture_as_pdf_rounded,
-            onTap: _openPdfPicker,
-            height: 72,
-            colors: const [Color(0xFFFF6B35), Color(0xFFFF8F5E)],
-          ),
+        // Primary CTA
+        _PrimaryActionCard(
+          icon: Icons.picture_as_pdf_rounded,
+          label: 'Open PDF',
+          subtitle: 'Drag & drop or pick a file',
+          gradient: const [Color(0xFFFF6B35), Color(0xFFFF8F5E)],
+          onTap: _openPdfPicker,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
-        // Secondary action row
+        // Secondary row
         Row(
           children: [
             Expanded(
-              child: _ActionCard(
+              child: _SecondaryActionCard(
                 icon: Icons.content_paste_rounded,
                 label: 'Paste Text',
                 subtitle: 'From clipboard',
+                color: AppColors.accentPurple,
                 onTap: _pasteFromClipboard,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _ActionCard(
+              child: _SecondaryActionCard(
                 icon: Icons.language_rounded,
-                label: 'Load URL',
-                subtitle: 'Web article',
-                onTap: () => setState(() => _showUrlInput = !_showUrlInput),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionCard(
-                icon: Icons.bar_chart_rounded,
-                label: 'Statistics',
-                subtitle: 'Your progress',
-                onTap: () => context.push('/statistics'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionCard(
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-                subtitle: 'Customize',
-                onTap: () => context.push('/settings'),
+                label: 'Web Article',
+                subtitle: 'Load a URL',
+                color: AppColors.accentBlue,
+                onTap: _showUrlBottomSheet,
               ),
             ),
           ],
@@ -328,116 +397,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildUrlInput() {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.bgSecondary,
+        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+      ),
+      child: SafeArea(
         child: Row(
           children: [
-            const Icon(Icons.link_rounded, color: AppColors.textMuted, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _urlController,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'Paste article URL here...',
-                  hintStyle: const TextStyle(color: AppColors.textDim),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onSubmitted: (_) => _loadUrl(),
-              ),
+            _BottomNavItem(
+              icon: Icons.home_rounded,
+              label: 'Home',
+              isActive: true,
+              onTap: () {},
             ),
-            const SizedBox(width: 8),
-            GradientButton(
-              label: 'Load',
-              icon: Icons.download_rounded,
-              onTap: _loadUrl,
-              height: 40,
-              colors: const [AppColors.accentBlue, Color(0xFF93C5FD)],
+            _BottomNavItem(
+              icon: Icons.bar_chart_rounded,
+              label: 'Stats',
+              isActive: false,
+              onTap: () => context.push('/statistics'),
+            ),
+            _BottomNavItem(
+              icon: Icons.settings_rounded,
+              label: 'Settings',
+              isActive: false,
+              onTap: () => context.push('/settings'),
             ),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildRecentDocuments(List<ReadingProgress> docs) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.history_rounded,
-                color: AppColors.textMuted, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Recent Documents',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        ...docs.map((doc) => _RecentDocumentTile(
-              document: doc,
-              onTap: () => _openRecentDocument(doc),
-              onRemove: () {
-                ref.read(recentDocumentsProvider.notifier).remove(doc.documentHash);
-              },
-            )),
-      ],
-    );
-  }
 }
 
-// ─── Sub-widgets ─────────────────────────────────────────────────────────────
+// ─── Sub-widgets ──────────────────────────────────────────────────────────────
 
-class _StatChip extends StatelessWidget {
+class _MiniStat extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String value;
   final Color color;
+  final String value;
+  final String label;
 
-  const _StatChip({
+  const _MiniStat({
     required this.icon,
-    required this.label,
-    required this.value,
     required this.color,
+    required this.value,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GlassCard(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 0.5),
+        ),
+        child: Row(
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11,
-              ),
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                  style: GoogleFonts.inter(
+                    fontSize: 15, fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  )),
+                Text(label,
+                  style: const TextStyle(
+                      color: AppColors.textDim, fontSize: 10)),
+              ],
             ),
           ],
         ),
@@ -446,75 +480,207 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _ActionCard extends StatefulWidget {
+class _PrimaryActionCard extends StatefulWidget {
   final IconData icon;
   final String label;
   final String subtitle;
+  final List<Color> gradient;
   final VoidCallback onTap;
 
-  const _ActionCard({
+  const _PrimaryActionCard({
     required this.icon,
     required this.label,
     required this.subtitle,
+    required this.gradient,
     required this.onTap,
   });
 
   @override
-  State<_ActionCard> createState() => _ActionCardState();
+  State<_PrimaryActionCard> createState() => _PrimaryActionCardState();
 }
 
-class _ActionCardState extends State<_ActionCard> {
-  bool _hovered = false;
+class _PrimaryActionCardState extends State<_PrimaryActionCard> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: widget.gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: widget.gradient.first.withValues(alpha: 0.35),
+                blurRadius: 20, offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(widget.icon, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.label,
+                    style: GoogleFonts.inter(
+                      fontSize: 20, fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    )),
+                  const SizedBox(height: 3),
+                  Text(widget.subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontSize: 13,
+                    )),
+                ],
+              ),
+              const Spacer(),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  color: Colors.white.withValues(alpha: 0.7), size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondaryActionCard extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SecondaryActionCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_SecondaryActionCard> createState() => _SecondaryActionCardState();
+}
+
+class _SecondaryActionCardState extends State<_SecondaryActionCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: _hovered ? AppColors.bgElevated : AppColors.bgCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _hovered ? AppColors.borderLight : AppColors.border,
-              width: 0.5,
-            ),
-            boxShadow: _hovered
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    )
-                  ]
-                : [],
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(widget.icon, color: AppColors.textSecondary, size: 28),
-              const SizedBox(height: 10),
-              Text(
-                widget.label,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                textAlign: TextAlign.center,
+                child: Icon(widget.icon, color: widget.color, size: 22),
               ),
-              const SizedBox(height: 2),
-              Text(
-                widget.subtitle,
+              const SizedBox(height: 14),
+              Text(widget.label,
+                style: GoogleFonts.inter(
+                  fontSize: 16, fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                )),
+              const SizedBox(height: 3),
+              Text(widget.subtitle,
                 style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 11,
+                    color: AppColors.textMuted, fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _BottomNavItem({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.accentOrange.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                textAlign: TextAlign.center,
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: isActive ? AppColors.accentOrange : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isActive ? AppColors.accentOrange : AppColors.textMuted,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ],
           ),
@@ -540,27 +706,21 @@ class _RecentDocumentTile extends StatefulWidget {
 }
 
 class _RecentDocumentTileState extends State<_RecentDocumentTile> {
-  bool _hovered = false;
+  bool _pressed = false;
 
   IconData get _typeIcon {
     switch (widget.document.documentType) {
-      case 'pdf':
-        return Icons.picture_as_pdf_rounded;
-      case 'url':
-        return Icons.language_rounded;
-      default:
-        return Icons.text_snippet_rounded;
+      case 'pdf': return Icons.picture_as_pdf_rounded;
+      case 'url': return Icons.language_rounded;
+      default: return Icons.text_snippet_rounded;
     }
   }
 
   Color get _typeColor {
     switch (widget.document.documentType) {
-      case 'pdf':
-        return AppColors.accentOrange;
-      case 'url':
-        return AppColors.accentBlue;
-      default:
-        return AppColors.accentPurple;
+      case 'pdf': return AppColors.accentOrange;
+      case 'url': return AppColors.accentBlue;
+      default: return AppColors.accentPurple;
     }
   }
 
@@ -571,143 +731,108 @@ class _RecentDocumentTileState extends State<_RecentDocumentTile> {
     final timeAgo = _formatTimeAgo(doc.lastAccessed);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Dismissible(
+        key: Key(doc.documentHash),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: AppColors.error.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(Icons.delete_outline_rounded,
+              color: AppColors.error, size: 22),
+        ),
+        onDismissed: (_) => widget.onRemove(),
         child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _hovered ? AppColors.bgElevated : AppColors.bgCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _hovered ? AppColors.borderLight : AppColors.border,
-                width: 0.5,
+          child: AnimatedScale(
+            scale: _pressed ? 0.98 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border, width: 0.5),
               ),
-            ),
-            child: Row(
-              children: [
-                // Type icon
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: _typeColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
+              child: Row(
+                children: [
+                  // Icon
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: _typeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(_typeIcon, color: _typeColor, size: 22),
                   ),
-                  child: Icon(_typeIcon, color: _typeColor, size: 22),
-                ),
-                const SizedBox(width: 14),
+                  const SizedBox(width: 12),
 
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppUtils.truncate(doc.documentTitle, 50),
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            '$progressPct% complete',
-                            style: TextStyle(
-                              color: doc.progressPercent > 0.8
-                                  ? AppColors.accentGreen
-                                  : AppColors.textMuted,
-                              fontSize: 12,
-                            ),
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(AppUtils.truncate(doc.documentTitle, 45),
+                          style: GoogleFonts.inter(
+                            fontSize: 14, fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
                           ),
-                          if (doc.documentType == 'pdf') ...[
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text('$progressPct%',
+                              style: TextStyle(
+                                color: doc.progressPercent > 0.8
+                                    ? AppColors.accentGreen
+                                    : AppColors.textMuted,
+                                fontSize: 12, fontWeight: FontWeight.w500,
+                              )),
                             const Text(' · ',
                                 style: TextStyle(color: AppColors.textDim)),
-                            Text(
-                              'Page ${doc.currentPage + 1}/${doc.totalPages}',
+                            Text(timeAgo,
                               style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 12,
-                              ),
-                            ),
+                                  color: AppColors.textDim, fontSize: 12)),
                           ],
-                          const Text(' · ',
-                              style: TextStyle(color: AppColors.textDim)),
-                          Text(
-                            '${doc.lastWpm} WPM',
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const Text(' · ',
-                              style: TextStyle(color: AppColors.textDim)),
-                          Text(
-                            timeAgo,
-                            style: const TextStyle(
-                              color: AppColors.textDim,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                        ),
+                        const SizedBox(height: 6),
+                        SmoothProgressBar(
+                          progress: doc.progressPercent,
+                          height: 3,
+                          color: _typeColor,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  // Resume badge
+                  if (doc.progressPercent > 0 && doc.progressPercent < 1.0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                ),
-
-                // Progress bar mini
-                SizedBox(
-                  width: 60,
-                  child: SmoothProgressBar(
-                    progress: doc.progressPercent,
-                    height: 3,
-                    color: _typeColor,
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // Resume indicator
-                if (doc.progressPercent > 0 && doc.progressPercent < 1.0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      child: const Text('Resume',
+                        style: TextStyle(
+                          color: AppColors.accentGreen,
+                          fontSize: 11, fontWeight: FontWeight.w600,
+                        )),
                     ),
-                    child: const Text(
-                      'Resume',
-                      style: TextStyle(
-                        color: AppColors.accentGreen,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(width: 8),
-
-                // Remove button
-                if (_hovered)
-                  GestureDetector(
-                    onTap: widget.onRemove,
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 16,
-                      color: AppColors.textDim,
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
