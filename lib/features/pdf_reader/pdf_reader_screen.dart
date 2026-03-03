@@ -251,8 +251,14 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
 
   /// The initial drag & drop landing screen
   Widget _buildDropZone() {
-    final recentDocs = ref.watch(recentDocumentsProvider)
-        .where((d) => d.documentType == 'pdf')
+    final recentDocs = ref
+        .watch(recentDocumentsProvider)
+        .where(
+          (d) =>
+              d.documentType == 'pdf' &&
+              d.filePath != null &&
+              d.filePath!.isNotEmpty,
+        )
         .take(6)
         .toList();
 
@@ -265,6 +271,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
           final xFile = details.files.first;
           if (xFile.path.toLowerCase().endsWith('.pdf')) {
             _fileName = xFile.name;
+            _filePath = xFile.path;
             final bytes = await xFile.readAsBytes();
             await _loadPdfFromBytes(bytes);
           } else {
@@ -309,8 +316,14 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: _isDragging
-                                  ? [AppColors.accentOrange, AppColors.accentOrangeLight]
-                                  : [AppColors.bgTertiary, AppColors.bgElevated],
+                                  ? [
+                                      AppColors.accentOrange,
+                                      AppColors.accentOrangeLight,
+                                    ]
+                                  : [
+                                      AppColors.bgTertiary,
+                                      AppColors.bgElevated,
+                                    ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -383,18 +396,24 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                         color: AppColors.error.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: AppColors.error.withValues(alpha: 0.3)),
+                          color: AppColors.error.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline,
-                              color: AppColors.error, size: 18),
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppColors.error,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _error!,
                               style: const TextStyle(
-                                  color: AppColors.error, fontSize: 13),
+                                color: AppColors.error,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
@@ -407,8 +426,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                     const SizedBox(height: 48),
                     Row(
                       children: [
-                        const Icon(Icons.history_rounded,
-                            color: AppColors.textMuted, size: 18),
+                        const Icon(
+                          Icons.history_rounded,
+                          color: AppColors.textMuted,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Recent PDFs',
@@ -512,7 +534,9 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                       child: AnimatedOpacity(
                         opacity: (_showSidebar && _showControls) ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 280),
-                        child: _showSidebar ? _buildSidebar() : const SizedBox.shrink(),
+                        child: _showSidebar
+                            ? _buildSidebar()
+                            : const SizedBox.shrink(),
                       ),
                     ),
 
@@ -532,7 +556,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                                   child: Text(
                                     'Failed to render PDF',
                                     style: TextStyle(
-                                        color: AppColors.textSecondary),
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ),
                           // Tap hint overlay (shown briefly when controls hide)
@@ -546,22 +571,30 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                                 child: IgnorePointer(
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 8),
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.55),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.55,
+                                      ),
                                       borderRadius: BorderRadius.circular(24),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: const [
-                                        Icon(Icons.touch_app_rounded,
-                                            color: Colors.white70, size: 16),
+                                        Icon(
+                                          Icons.touch_app_rounded,
+                                          color: Colors.white70,
+                                          size: 16,
+                                        ),
                                         SizedBox(width: 6),
                                         Text(
                                           'Tap to show controls',
                                           style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12),
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -581,8 +614,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
         ),
 
         // ── Resume dialog overlay ──
-        if (_showResumeDialog && _savedProgress != null)
-          _buildResumeDialog(),
+        if (_showResumeDialog && _savedProgress != null) _buildResumeDialog(),
       ],
     );
   }
@@ -625,8 +657,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: AppColors.textSecondary, size: 16),
+                    const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: AppColors.textSecondary,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       title,
@@ -651,8 +686,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.auto_stories_rounded,
-                  color: Colors.white, size: 16),
+              child: const Icon(
+                Icons.auto_stories_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
             ),
           ],
         ),
@@ -689,8 +727,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
               },
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: AppColors.textSecondary, size: 16),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.textSecondary,
+                  size: 16,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -705,8 +746,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                 ),
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: const Icon(Icons.auto_stories_rounded,
-                  color: Colors.white, size: 14),
+              child: const Icon(
+                Icons.auto_stories_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -737,13 +781,15 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [
                         AppColors.accentOrange,
-                        AppColors.accentOrangeLight
+                        AppColors.accentOrangeLight,
                       ],
                     ),
                     borderRadius: BorderRadius.circular(8),
@@ -758,8 +804,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Read',
@@ -786,9 +835,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
       width: 180,
       decoration: const BoxDecoration(
         color: AppColors.bgSecondary,
-        border: Border(
-          right: BorderSide(color: AppColors.border, width: 0.5),
-        ),
+        border: Border(right: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -822,7 +869,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
               itemCount: _totalPages,
               itemBuilder: (context, index) {
                 final isActive = index == _currentPreviewPage;
-                final hasProgress = _savedProgress != null &&
+                final hasProgress =
+                    _savedProgress != null &&
                     _savedProgress!.currentPage == index;
 
                 return GestureDetector(
@@ -846,8 +894,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                                 color: isActive
                                     ? AppColors.accentOrange
                                     : hasProgress
-                                        ? AppColors.accentGreen
-                                        : AppColors.border,
+                                    ? AppColors.accentGreen
+                                    : AppColors.border,
                                 width: isActive ? 2 : 0.5,
                               ),
                             ),
@@ -858,7 +906,9 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                                   child: Text(
                                     index < _pageTexts.length
                                         ? AppUtils.truncate(
-                                            _pageTexts[index], 100)
+                                            _pageTexts[index],
+                                            100,
+                                          )
                                         : '',
                                     style: TextStyle(
                                       color: AppColors.textDim,
@@ -987,11 +1037,16 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.accentOrange.withValues(alpha: 0.12),
+                            color: AppColors.accentOrange.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.picture_as_pdf_rounded,
-                              color: AppColors.accentOrange, size: 18),
+                          child: const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            color: AppColors.accentOrange,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -1047,10 +1102,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
                   label: 'Resume from Page ${progress.currentPage + 1}',
                   icon: Icons.play_arrow_rounded,
                   onTap: () => _startReading(resume: true),
-                  colors: const [
-                    AppColors.accentGreen,
-                    Color(0xFF86EFAC),
-                  ],
+                  colors: const [AppColors.accentGreen, Color(0xFF86EFAC)],
                 ),
               ),
               const SizedBox(height: 10),
@@ -1157,14 +1209,19 @@ class _RecentPdfCardState extends State<_RecentPdfCard> {
                       color: AppColors.accentOrange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.picture_as_pdf_rounded,
-                        color: AppColors.accentOrange, size: 16),
+                    child: const Icon(
+                      Icons.picture_as_pdf_rounded,
+                      color: AppColors.accentOrange,
+                      size: 16,
+                    ),
                   ),
                   const Spacer(),
                   if (doc.progressPercent > 0 && doc.progressPercent < 1.0)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.accentGreen.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(4),

@@ -201,6 +201,8 @@ class ReaderState {
   final String documentTitle;
   final String documentHash;
   final String documentType;          // 'pdf', 'text', 'url'
+  final String? filePath;              // for PDFs — saved path
+  final String? sourceUrl;             // for URLs
   final int currentPage;
   final int totalPages;
   final int wpm;
@@ -219,6 +221,8 @@ class ReaderState {
     this.documentTitle = '',
     this.documentHash = '',
     this.documentType = 'text',
+    this.filePath,
+    this.sourceUrl,
     this.currentPage = 0,
     this.totalPages = 0,
     this.wpm = 300,
@@ -280,6 +284,8 @@ class ReaderState {
     String? documentTitle,
     String? documentHash,
     String? documentType,
+    String? filePath,
+    String? sourceUrl,
     int? currentPage,
     int? totalPages,
     int? wpm,
@@ -298,6 +304,8 @@ class ReaderState {
       documentTitle: documentTitle ?? this.documentTitle,
       documentHash: documentHash ?? this.documentHash,
       documentType: documentType ?? this.documentType,
+      filePath: filePath ?? this.filePath,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
       currentPage: currentPage ?? this.currentPage,
       totalPages: totalPages ?? this.totalPages,
       wpm: wpm ?? this.wpm,
@@ -396,6 +404,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
       documentTitle: title,
       documentHash: hash,
       documentType: 'pdf',
+      filePath: filePath,
       currentPage: savedProgress?.currentPage ?? 0,
       totalPages: totalPages,
       wpm: savedProgress?.lastWpm ?? state.wpm,
@@ -408,7 +417,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     );
 
     // Save initial progress with file info
-    _saveProgress(filePath: filePath);
+    _saveProgress();
     _startAutoSave();
   }
 
@@ -450,13 +459,14 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         documentTitle: title,
         documentHash: hash,
         documentType: 'url',
+        sourceUrl: url,
         currentPage: 0,
         totalPages: 1,
         isLoading: false,
         error: null,
       );
 
-      _saveProgress(sourceUrl: url);
+      _saveProgress();
       _startAutoSave();
     } catch (e) {
       state = state.copyWith(
@@ -621,28 +631,28 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
 
   // ─── Progress Persistence ──────────────────────────────────────────
 
-  void _saveProgress({String? filePath, String? sourceUrl}) {
-    if (state.documentHash.isEmpty) return;
-    final progress = ReadingProgress(
-      documentHash: state.documentHash,
-      documentTitle: state.documentTitle,
-      filePath: filePath,
-      currentPage: state.currentPageFromWordIndex,
-      totalPages: state.totalPages,
-      wordIndex: state.currentWordIndex,
-      totalWords: state.words.length,
-      lastWpm: state.wpm,
-      lastWordsAtATime: state.wordsAtATime,
-      lastThemeIndex: state.themeIndex,
-      lastFont: state.fontFamily,
-      lastFontSize: state.fontSize,
-      lastAccessed: DateTime.now(),
-      documentType: state.documentType,
-      sourceUrl: sourceUrl,
-      totalReadingTimeSeconds: 0,
-    );
-    _storage.saveProgress(progress);
-  }
+  void _saveProgress() {
+  if (state.documentHash.isEmpty) return;
+  final progress = ReadingProgress(
+    documentHash: state.documentHash,
+    documentTitle: state.documentTitle,
+    filePath: state.filePath,
+    currentPage: state.currentPageFromWordIndex,
+    totalPages: state.totalPages,
+    wordIndex: state.currentWordIndex,
+    totalWords: state.words.length,
+    lastWpm: state.wpm,
+    lastWordsAtATime: state.wordsAtATime,
+    lastThemeIndex: state.themeIndex,
+    lastFont: state.fontFamily,
+    lastFontSize: state.fontSize,
+    lastAccessed: DateTime.now(),
+    documentType: state.documentType,
+    sourceUrl: state.sourceUrl,
+    totalReadingTimeSeconds: 0,
+  );
+  _storage.saveProgress(progress);
+}
 
   void _startAutoSave() {
     _autoSaveTimer?.cancel();
