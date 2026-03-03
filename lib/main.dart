@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/services/storage_service.dart';
@@ -18,6 +19,9 @@ import 'platform/desktop_window.dart'
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize pdfrx cache directory (required before using PdfDocument directly)
+  await pdfrxFlutterInitialize();
 
   // Initialize Hive storage
   final storage = StorageService();

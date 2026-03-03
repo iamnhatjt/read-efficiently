@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -74,8 +75,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
     );
     _fadeController.forward();
 
-    // If a file path was passed (desktop), load it immediately
+    // If a file path was passed (mobile/desktop), load it immediately
     if (widget.initialFilePath != null && !kIsWeb) {
+      _filePath = widget.initialFilePath;
+      _fileName = AppUtils.fileNameFromPath(widget.initialFilePath!);
+      _isProcessing = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadPdfFromPath(widget.initialFilePath!);
       });
@@ -119,11 +123,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
 
   /// Platform-aware file reading
   Future<Uint8List?> _platformReadFile(String path) async {
-    // Dynamically load dart:io on non-web
     try {
-      // Using conditional import facade would be ideal, but for simplicity:
-      // On desktop, file_picker gives us bytes too
-      return null; // Will be handled by file_picker's bytes
+      return await File(path).readAsBytes();
     } catch (e) {
       return null;
     }
@@ -611,173 +612,170 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen>
   }
 
   Widget _buildTopBar({required String title}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => context.pop(),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.arrow_back_ios_new_rounded,
-                      color: AppColors.textSecondary, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Spacer(),
-          // Logo
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.accentOrange, AppColors.accentOrangeLight],
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.auto_stories_rounded,
-                color: Colors.white, size: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPdfTopBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.bgSecondary,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Back
-          GestureDetector(
-            onTap: () {
-              _pdfDocument?.dispose();
-              setState(() {
-                _filePath = null;
-                _fileBytes = null;
-                _pdfDocument = null;
-                _pageTexts = [];
-                _savedProgress = null;
-                _showResumeDialog = false;
-              });
-            },
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: AppColors.textSecondary, size: 16),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Logo + title
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.accentOrange, AppColors.accentOrangeLight],
-              ),
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: const Icon(Icons.auto_stories_rounded,
-                color: Colors.white, size: 14),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              _fileName ?? 'PDF Document',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-
-          const Spacer(),
-
-          // Page info
-          Text(
-            'Page ${_currentPreviewPage + 1} / $_totalPages',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
-          const SizedBox(width: 16),
-
-          // Sidebar toggle
-          HoverIconButton(
-            icon: _showSidebar
-                ? Icons.view_sidebar_rounded
-                : Icons.view_sidebar_outlined,
-            tooltip: 'Toggle Sidebar',
-            onTap: () => setState(() => _showSidebar = !_showSidebar),
-            isActive: _showSidebar,
-          ),
-          const SizedBox(width: 8),
-
-          // Start speed reading button
-          GestureDetector(
-            onTap: () => _startReading(resume: _savedProgress != null),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      AppColors.accentOrange,
-                      AppColors.accentOrangeLight
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.accentOrange.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: () => context.pop(),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 18),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: AppColors.textSecondary, size: 16),
+                    const SizedBox(width: 8),
                     Text(
-                      'Start Speed Reading',
+                      title,
                       style: GoogleFonts.inter(
-                        fontSize: 13,
+                        fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+            const Spacer(),
+            // Logo
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.accentOrange, AppColors.accentOrangeLight],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.auto_stories_rounded,
+                  color: Colors.white, size: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPdfTopBar() {
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          border: Border(
+            bottom: BorderSide(color: AppColors.border, width: 0.5),
           ),
-        ],
+        ),
+        child: Row(
+          children: [
+            // Back
+            GestureDetector(
+              onTap: () {
+                _pdfDocument?.dispose();
+                setState(() {
+                  _filePath = null;
+                  _fileBytes = null;
+                  _pdfDocument = null;
+                  _pageTexts = [];
+                  _savedProgress = null;
+                  _showResumeDialog = false;
+                });
+                if (mounted) context.pop();
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: AppColors.textSecondary, size: 16),
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Logo + title
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.accentOrange, AppColors.accentOrangeLight],
+                ),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: const Icon(Icons.auto_stories_rounded,
+                  color: Colors.white, size: 14),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _fileName ?? 'PDF Document',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Page info (compact)
+            Text(
+              '${_currentPreviewPage + 1}/$_totalPages',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+            const SizedBox(width: 12),
+
+            // Start speed reading button
+            GestureDetector(
+              onTap: () => _startReading(resume: _savedProgress != null),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        AppColors.accentOrange,
+                        AppColors.accentOrangeLight
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.accentOrange.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.play_arrow_rounded,
+                          color: Colors.white, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Read',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -182,14 +182,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(readerProvider.notifier).loadUrl(doc.sourceUrl!);
       context.push('/reader');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Text documents are session-only. Paste again to continue.'),
-          backgroundColor: AppColors.bgElevated,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      // For text documents: if the reader still has the same document loaded, resume
+      final readerState = ref.read(readerProvider);
+      if (readerState.documentHash == doc.documentHash && readerState.words.isNotEmpty) {
+        ref.read(readerProvider.notifier).pause();
+        context.push('/reader');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('This document is no longer available. Please open it again.'),
+            backgroundColor: AppColors.bgElevated,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
     }
   }
 

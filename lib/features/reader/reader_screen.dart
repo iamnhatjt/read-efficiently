@@ -23,7 +23,7 @@ class ReaderScreen extends ConsumerStatefulWidget {
 class _ReaderScreenState extends ConsumerState<ReaderScreen>
     with SingleTickerProviderStateMixin {
   late final FocusNode _focusNode;
-  bool _showControls = true;
+  bool _showControls = false;
   bool _settingsOpen = false;
 
   @override
@@ -95,7 +95,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         reader.setWordsAtATime(5);
         break;
       case LogicalKeyboardKey.escape:
-        if (mounted) context.pop();
+        if (mounted) context.go('/');
         break;
       case LogicalKeyboardKey.keyH:
         setState(() => _showControls = !_showControls);
@@ -153,7 +153,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
               textAlign: TextAlign.center),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => context.pop(),
+            onPressed: () => context.go('/'),
             icon: const Icon(Icons.arrow_back),
             label: const Text('Go Back'),
           ),
@@ -176,7 +176,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
               style: TextStyle(color: theme.contextText)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => context.pop(),
+            onPressed: () => context.go('/'),
             icon: const Icon(Icons.arrow_back),
             label: const Text('Go Back'),
           ),
@@ -188,6 +188,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Widget _buildReader(ReaderState state, ReadingTheme theme) {
     final settings = ref.watch(settingsProvider);
     final reader = ref.read(readerProvider.notifier);
+
+    // Auto-hide controls when playing, show when paused
+    final shouldShowControls = !state.isPlaying;
+    if (_showControls != shouldShowControls) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showControls = shouldShowControls);
+      });
+    }
 
     return Stack(
       children: [
@@ -401,84 +409,87 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         ? ' — Page ${state.currentPageFromWordIndex + 1} of ${state.totalPages}'
         : '';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: theme.background.withValues(alpha: 0.9),
-      child: Row(
-        children: [
-          // Back button
-          GestureDetector(
-            onTap: () {
-              ref.read(readerProvider.notifier).pause();
-              context.pop();
-            },
-            child: Icon(Icons.arrow_back_ios_new_rounded,
-                color: theme.contextText, size: 18),
-          ),
-          const SizedBox(width: 12),
-
-          // Document title
-          Expanded(
-            child: Text(
-              '${state.documentTitle}$pageInfo',
-              style: TextStyle(
-                color: theme.text.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        color: theme.background.withValues(alpha: 0.9),
+        child: Row(
+          children: [
+            // Back button
+            GestureDetector(
+              onTap: () {
+                ref.read(readerProvider.notifier).pause();
+                context.go('/');
+              },
+              child: Icon(Icons.arrow_back_ios_new_rounded,
+                  color: theme.contextText, size: 18),
             ),
-          ),
+            const SizedBox(width: 12),
 
-          // Time remaining
-          Text(
-            '~${AppUtils.formatDuration(state.estimatedTimeLeft)} left',
-            style: TextStyle(color: theme.contextText, fontSize: 13),
-          ),
-          const SizedBox(width: 20),
-
-          // WPM display with arrows
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () => ref
-                    .read(readerProvider.notifier)
-                    .adjustWpm(-AppConstants.wpmStep),
-                child: Icon(Icons.remove, color: theme.contextText, size: 14),
+            // Document title
+            Expanded(
+              child: Text(
+                '${state.documentTitle}$pageInfo',
+                style: TextStyle(
+                  color: theme.text.withValues(alpha: 0.7),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(width: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.focalWord.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: theme.focalWord.withValues(alpha: 0.3),
-                    width: 0.5,
+            ),
+
+            // Time remaining
+            Text(
+              '~${AppUtils.formatDuration(state.estimatedTimeLeft)} left',
+              style: TextStyle(color: theme.contextText, fontSize: 13),
+            ),
+            const SizedBox(width: 20),
+
+            // WPM display with arrows
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => ref
+                      .read(readerProvider.notifier)
+                      .adjustWpm(-AppConstants.wpmStep),
+                  child: Icon(Icons.remove, color: theme.contextText, size: 14),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.focalWord.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: theme.focalWord.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    '${state.wpm} WPM',
+                    style: TextStyle(
+                      color: theme.focalWord,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                child: Text(
-                  '${state.wpm} WPM',
-                  style: TextStyle(
-                    color: theme.focalWord,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => ref
+                      .read(readerProvider.notifier)
+                      .adjustWpm(AppConstants.wpmStep),
+                  child: Icon(Icons.add, color: theme.contextText, size: 14),
                 ),
-              ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => ref
-                    .read(readerProvider.notifier)
-                    .adjustWpm(AppConstants.wpmStep),
-                child: Icon(Icons.add, color: theme.contextText, size: 14),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -551,6 +562,64 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
               ],
             ),
             const SizedBox(height: 12),
+
+            // Page navigation row (PDF only)
+            if (state.documentType == 'pdf' && state.totalPages > 0) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => reader.prevPage(),
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: theme.contextText.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.chevron_left_rounded,
+                          color: theme.contextText, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => _showPageJumpDialog(state, theme, reader),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.contextText.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: theme.contextText.withValues(alpha: 0.15),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Page ${state.currentPageFromWordIndex + 1} / ${state.totalPages}',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => reader.nextPage(),
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: theme.contextText.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.chevron_right_rounded,
+                          color: theme.contextText, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // Main controls row
             Row(
@@ -637,7 +706,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                   label: 'Exit',
                   onTap: () {
                     reader.pause();
-                    context.pop();
+                    context.go('/');
                   },
                   theme: theme,
                 ),
@@ -645,6 +714,80 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showPageJumpDialog(ReaderState state, ReadingTheme theme, ReaderNotifier reader) {
+    final controller = TextEditingController(
+      text: '${state.currentPageFromWordIndex + 1}',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Jump to Page',
+          style: TextStyle(color: theme.text, fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter a page number (1 – ${state.totalPages})',
+              style: TextStyle(color: theme.contextText, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              style: TextStyle(color: theme.text, fontSize: 20, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: theme.contextText.withValues(alpha: 0.08),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.contextText.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.focalWord, width: 2),
+                ),
+              ),
+              onSubmitted: (value) {
+                final page = int.tryParse(value);
+                if (page != null && page >= 1 && page <= state.totalPages) {
+                  reader.goToPage(page - 1);
+                  Navigator.of(ctx).pop();
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: theme.contextText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final page = int.tryParse(controller.text);
+              if (page != null && page >= 1 && page <= state.totalPages) {
+                reader.goToPage(page - 1);
+                Navigator.of(ctx).pop();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.focalWord,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Go', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }

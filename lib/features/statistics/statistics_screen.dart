@@ -90,48 +90,64 @@ class StatisticsScreen extends ConsumerWidget {
   }
 
   Widget _buildHeroStats(stats) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _HeroStatCard(
-            icon: Icons.menu_book_rounded,
-            iconColor: AppColors.accentOrange,
-            title: 'Total Words Read',
-            value: AppUtils.formatNumber(stats.totalWordsRead),
-            subtitle: 'across ${stats.totalSessionsCompleted} sessions',
+        // Row 1
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _HeroStatCard(
+                  icon: Icons.menu_book_rounded,
+                  iconColor: AppColors.accentOrange,
+                  title: 'Total Words Read',
+                  value: AppUtils.formatNumber(stats.totalWordsRead),
+                  subtitle: 'across ${stats.totalSessionsCompleted} sessions',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _HeroStatCard(
+                  icon: Icons.timer_outlined,
+                  iconColor: AppColors.accentBlue,
+                  title: 'Total Reading Time',
+                  value: AppUtils.formatDuration(
+                      Duration(seconds: stats.totalReadingTimeSeconds)),
+                  subtitle: stats.totalSessionsCompleted > 0
+                      ? 'avg ${AppUtils.formatDuration(Duration(seconds: stats.totalReadingTimeSeconds ~/ (stats.totalSessionsCompleted > 0 ? stats.totalSessionsCompleted : 1)))}/session'
+                      : 'Start reading!',
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _HeroStatCard(
-            icon: Icons.timer_outlined,
-            iconColor: AppColors.accentBlue,
-            title: 'Total Reading Time',
-            value: AppUtils.formatDuration(
-                Duration(seconds: stats.totalReadingTimeSeconds)),
-            subtitle: stats.totalSessionsCompleted > 0
-                ? 'avg ${AppUtils.formatDuration(Duration(seconds: stats.totalReadingTimeSeconds ~/ (stats.totalSessionsCompleted > 0 ? stats.totalSessionsCompleted : 1)))}/session'
-                : 'Start reading!',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _HeroStatCard(
-            icon: Icons.local_fire_department_rounded,
-            iconColor: AppColors.accentYellow,
-            title: 'Current Streak',
-            value: '${stats.currentStreak} days',
-            subtitle: 'Longest: ${stats.longestStreak} days',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _HeroStatCard(
-            icon: Icons.check_circle_outline_rounded,
-            iconColor: AppColors.accentGreen,
-            title: 'Sessions',
-            value: '${stats.totalSessionsCompleted}',
-            subtitle: 'completed',
+        const SizedBox(height: 12),
+        // Row 2
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _HeroStatCard(
+                  icon: Icons.local_fire_department_rounded,
+                  iconColor: AppColors.accentYellow,
+                  title: 'Current Streak',
+                  value: '${stats.currentStreak} days',
+                  subtitle: 'Longest: ${stats.longestStreak} days',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _HeroStatCard(
+                  icon: Icons.check_circle_outline_rounded,
+                  iconColor: AppColors.accentGreen,
+                  title: 'Sessions',
+                  value: '${stats.totalSessionsCompleted}',
+                  subtitle: 'completed',
+                ),
+              ),
+            ],
           ),
         ),
       ],
